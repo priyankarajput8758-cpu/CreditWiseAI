@@ -1,193 +1,244 @@
 """
-Page 1: Overview Dashboard View
-Institutional fintech overview dashboard featuring real-time KPIs,
-actual credit-risk distribution, end-to-end processing pipeline, and session audit history.
+Overview Dashboard — CreditWise AI
+Premium fintech dashboard with session KPIs, risk distribution chart,
+recent activity chart, and assessment history snapshot.
 """
 
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from utils.styling import render_top_navigation, render_academic_disclaimer
-from utils.icons import get_svg_icon
+from utils.styling import render_page_header, render_disclaimer, kpi_card, navigate_to
+
 
 def render_home_page(artifacts):
-    """Renders the Overview Dashboard page."""
-    render_top_navigation("Overview")
-    render_academic_disclaimer()
+    render_page_header("Overview", "Credit risk assessment dashboard")
+    render_disclaimer()
 
+    history = st.session_state.get('assessment_history', [])
     metrics = artifacts['metrics']
-    acc_formatted = f"{metrics['accuracy']*100:.1f}%"
 
-    # Top Welcome Section with Action Button
-    t_col1, t_col2 = st.columns([3, 1])
-    with t_col1:
+    # ── Compute live session KPIs ──
+    total = len(history)
+    approved = sum(1 for h in history if 'Approved' in h.get('Recommendation', ''))
+    rejected = total - approved
+    approval_rate = round((approved / total * 100), 1) if total > 0 else 0
+
+    # ── Page title row ──
+    col_title, col_cta = st.columns([4, 1])
+    with col_title:
         st.markdown("""
-        <div style="margin-bottom: 1.25rem;">
-            <h1 style="margin-bottom: 0.25rem;">Welcome to CreditWise AI</h1>
-            <p style="color: #64748B; font-size: 0.95rem; margin-top: 0;">
-                Intelligent credit assessment with transparent AI explanations.
+        <div style="margin-bottom:1rem;">
+            <h1 style="margin-bottom:0;">Welcome back</h1>
+            <p style="color:#64748B;font-size:0.9rem;margin-top:4px;">
+                Here's your credit assessment overview for this session.
             </p>
         </div>
         """, unsafe_allow_html=True)
-    with t_col2:
-        st.markdown("<div style='text-align: right; padding-top: 0.5rem;'>", unsafe_allow_html=True)
-        if st.button("New Loan Assessment", use_container_width=True, type="primary"):
-            st.session_state['current_page'] = "Loan Assessment"
-            st.rerun()
+    with col_cta:
+        st.markdown("<div style='padding-top:0.6rem;'>", unsafe_allow_html=True)
+        if st.button("+ New Assessment", type="primary", use_container_width=True):
+            navigate_to("New Assessment")
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # 4 Primary KPI Cards
+    # ── KPI Row ──
     k1, k2, k3, k4 = st.columns(4)
 
     with k1:
-        st.markdown("""
-        <div class="kpi-card">
-            <div class="kpi-label">Dataset Records</div>
-            <div class="kpi-value">1,000</div>
-            <div class="kpi-subtext">UCI Statlog German Credit benchmark</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(kpi_card(
+            "Total Applications",
+            str(total) if total > 0 else "—",
+            subtext="This session",
+            accent="#0A1628"
+        ), unsafe_allow_html=True)
 
     with k2:
-        st.markdown("""
-        <div class="kpi-card">
-            <div class="kpi-label">Prediction Model</div>
-            <div class="kpi-value">XGBoost</div>
-            <div class="kpi-subtext">Regularized Gradient Boosted Trees</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(kpi_card(
+            "Approved",
+            str(approved) if total > 0 else "—",
+            subtext="Good credit risk",
+            accent="#10B981"
+        ), unsafe_allow_html=True)
 
     with k3:
-        st.markdown("""
-        <div class="kpi-card">
-            <div class="kpi-label">Explainability</div>
-            <div class="kpi-value">TreeSHAP</div>
-            <div class="kpi-subtext">Game-theoretic Shapley attributions</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(kpi_card(
+            "Rejected",
+            str(rejected) if total > 0 else "—",
+            subtext="Elevated risk",
+            accent="#EF4444"
+        ), unsafe_allow_html=True)
 
     with k4:
-        st.markdown(f"""
-        <div class="kpi-card">
-            <div class="kpi-label">Model Accuracy</div>
-            <div class="kpi-value">{acc_formatted}</div>
-            <div class="kpi-subtext">Measured on 20% holdout test set</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(kpi_card(
+            "Approval Rate",
+            f"{approval_rate}%" if total > 0 else "—",
+            subtext="Session average",
+            accent="#8B5CF6"
+        ), unsafe_allow_html=True)
 
-    st.markdown("<div style='height: 1.25rem;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:1.25rem;'></div>", unsafe_allow_html=True)
 
-    # Main Dashboard Grid: Credit-Risk Distribution & Pipeline Workflow
-    g_left, g_right = st.columns([1, 1])
+    # ── Charts Row ──
+    chart_left, chart_right = st.columns([1, 1])
 
-    with g_left:
+    with chart_left:
         st.markdown("""
-        <div class="saas-card" style="height: 100%;">
-            <div class="saas-card-header">
-                <h3 class="saas-card-title">Credit-Risk Benchmark Distribution</h3>
-                <span class="badge-neutral">Historical Dataset</span>
+        <div class="cw-card" style="margin-bottom:0;">
+            <div class="cw-card-header">
+                <span class="cw-card-title">Credit Risk Distribution</span>
+                <span class="cw-badge cw-badge-neutral">Training Dataset</span>
             </div>
-            <p style="font-size: 0.84rem; color: #64748B; margin-bottom: 0.5rem;">
-                Actual class balance in the 1,000 German Credit applicants:
+            <p style="font-size:0.8rem;color:#64748B;margin-bottom:0.75rem;">
+                Class balance in the 1,000-record German Credit benchmark.
             </p>
         """, unsafe_allow_html=True)
 
-        # Plotly Donut Chart
-        labels = ['Good Credit Risk (Approved)', 'Bad Credit Risk (Rejected)']
-        values = [700, 300]
-        colors = ['#10B981', '#EF4444']
-
-        fig_pie = go.Figure(data=[go.Pie(
-            labels=labels,
-            values=values,
-            hole=.6,
-            marker=dict(colors=colors, line=dict(color='#FFFFFF', width=2)),
+        fig_donut = go.Figure(data=[go.Pie(
+            labels=['Good Risk (Approved)', 'Bad Risk (Rejected)'],
+            values=[700, 300],
+            hole=0.65,
+            marker=dict(
+                colors=['#10B981', '#EF4444'],
+                line=dict(color='#FFFFFF', width=3)
+            ),
             textinfo='percent',
-            hoverinfo='label+value+percent'
+            hoverinfo='label+value+percent',
+            textfont=dict(size=13, family='Inter'),
         )])
 
-        fig_pie.update_layout(
+        fig_donut.add_annotation(
+            text="<b>70%</b><br><span style='font-size:11px;'>Approved</span>",
+            x=0.5, y=0.5,
+            font=dict(size=14, color='#0F172A', family='Inter'),
+            showarrow=False,
+            align='center'
+        )
+
+        fig_donut.update_layout(
             paper_bgcolor="#FFFFFF",
             plot_bgcolor="#FFFFFF",
             margin=dict(l=10, r=10, t=10, b=10),
-            height=240,
+            height=230,
             showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5, font=dict(size=11))
+            legend=dict(
+                orientation="h",
+                yanchor="bottom", y=-0.18,
+                xanchor="center", x=0.5,
+                font=dict(size=11, family='Inter', color='#475569')
+            )
         )
-        st.plotly_chart(fig_pie, use_container_width=True)
+        st.plotly_chart(fig_donut, use_container_width=True, config={'displayModeBar': False})
         st.markdown("</div>", unsafe_allow_html=True)
 
-    with g_right:
+    with chart_right:
         st.markdown("""
-        <div class="saas-card" style="height: 100%;">
-            <div class="saas-card-header">
-                <h3 class="saas-card-title">Automated Underwriting Architecture</h3>
-                <span class="badge-neutral">End-to-End Pipeline</span>
+        <div class="cw-card" style="margin-bottom:0;">
+            <div class="cw-card-header">
+                <span class="cw-card-title">Session Assessment Activity</span>
+                <span class="cw-badge cw-badge-neutral">Live Session</span>
             </div>
-            <p style="font-size: 0.84rem; color: #64748B; margin-bottom: 0.6rem;">
-                How applicant telemetry flows from raw attributes to explainable credit outcomes:
+            <p style="font-size:0.8rem;color:#64748B;margin-bottom:0.75rem;">
+                Approval probability scores from your session assessments.
             </p>
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-                <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between;">
-                    <div>
-                        <strong style="font-size: 0.85rem; color: #0F172A;">1. Data Preprocessing & Validation</strong>
-                        <div style="font-size: 0.75rem; color: #64748B;">Standardizes numerical scales and encodes categorical attributes.</div>
-                    </div>
-                    <span class="badge-neutral">Active</span>
-                </div>
-                <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between;">
-                    <div>
-                        <strong style="font-size: 0.85rem; color: #0F172A;">2. XGBoost Ensemble Inference</strong>
-                        <div style="font-size: 0.75rem; color: #64748B;">Computes margin score across 100 gradient-boosted decision trees.</div>
-                    </div>
-                    <span class="badge-neutral">Active</span>
-                </div>
-                <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between;">
-                    <div>
-                        <strong style="font-size: 0.85rem; color: #0F172A;">3. TreeSHAP Attribution Audit</strong>
-                        <div style="font-size: 0.75rem; color: #64748B;">Decomposes marginal prediction into additive feature payoffs.</div>
-                    </div>
-                    <span class="badge-neutral">Active</span>
-                </div>
-                <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between;">
-                    <div>
-                        <strong style="font-size: 0.85rem; color: #0F172A;">4. Transparent Underwriting Decision</strong>
-                        <div style="font-size: 0.75rem; color: #64748B;">Provides risk tiers, probability gauges, and adverse action factors.</div>
-                    </div>
-                    <span class="badge-neutral">Active</span>
-                </div>
-            </div>
-        </div>
         """, unsafe_allow_html=True)
 
-    st.markdown("<div style='height: 1.25rem;'></div>", unsafe_allow_html=True)
+        if history:
+            probs = [float(h['Probability'].replace('%', '')) for h in history]
+            labels = [h['Case ID'] for h in history]
+            colors_bar = ['#10B981' if p >= 50 else '#EF4444' for p in probs]
 
-    # Recent Assessments Section
+            fig_bar = go.Figure()
+            fig_bar.add_trace(go.Bar(
+                x=labels[::-1],
+                y=probs[::-1],
+                marker=dict(color=colors_bar[::-1], line=dict(width=0)),
+                hovertemplate="<b>%{x}</b><br>Approval Prob: %{y:.1f}%<extra></extra>",
+            ))
+            fig_bar.add_hline(y=50, line_dash="dot", line_color="#94A3B8", line_width=1.5)
+            fig_bar.update_layout(
+                paper_bgcolor="#FFFFFF",
+                plot_bgcolor="#FFFFFF",
+                margin=dict(l=10, r=10, t=10, b=40),
+                height=230,
+                xaxis=dict(tickfont=dict(size=11, family='Inter', color='#64748B'), tickangle=-30),
+                yaxis=dict(
+                    title=dict(text="Approval Probability (%)", font=dict(size=11, color='#64748B')),
+                    range=[0, 105],
+                    gridcolor="#F1F5F9",
+                    tickfont=dict(size=11, family='Inter', color='#64748B'),
+                ),
+                bargap=0.35,
+                showlegend=False,
+            )
+            st.plotly_chart(fig_bar, use_container_width=True, config={'displayModeBar': False})
+        else:
+            st.markdown("""
+            <div class="cw-empty-state" style="padding:2.5rem 1rem;">
+                <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#94A3B8;margin-bottom:0.4rem;">Activity Chart</div>
+                <p style="font-size:0.85rem;color:#64748B;margin:0;">
+                    Run your first assessment to see score trends here.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("<div style='height:1.25rem;'></div>", unsafe_allow_html=True)
+
+    # ── Recent Assessments ──
     st.markdown("""
-    <div class="saas-card">
-        <div class="saas-card-header">
-            <h3 class="saas-card-title">Recent Session Assessments</h3>
-            <span class="badge-neutral">Audit Ledger</span>
+    <div class="cw-card">
+        <div class="cw-card-header">
+            <span class="cw-card-title">Recent Assessments</span>
         </div>
     """, unsafe_allow_html=True)
 
-    history = st.session_state.get('assessment_history', [])
-
     if history:
-        df_hist = pd.DataFrame(history)
-        st.dataframe(df_hist, hide_index=True, use_container_width=True)
+        df = pd.DataFrame(history[:5])
+        st.dataframe(df, hide_index=True, use_container_width=True)
+        if len(history) > 5:
+            if st.button("View Full History →", type="secondary"):
+                navigate_to("Assessment History")
     else:
         st.markdown("""
-        <div style="text-align: center; padding: 2rem 1rem; color: #64748B;">
-            <p style="margin-bottom: 0.8rem; font-size: 0.9rem;">
-                No assessments executed in the current session yet.
+        <div class="cw-empty-state" style="padding:2.5rem 1rem;">
+            <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#94A3B8;margin-bottom:0.4rem;">Audit Ledger</div>
+            <p style="font-size:0.88rem;color:#64748B;margin-bottom:0.75rem;">
+                No assessments in this session yet.
             </p>
         </div>
         """, unsafe_allow_html=True)
-        col_c1, col_c2, col_c3 = st.columns([1, 1, 1])
-        with col_c2:
-            if st.button("Start First Assessment", use_container_width=True, type="secondary"):
-                st.session_state['current_page'] = "Loan Assessment"
-                st.rerun()
+        c1, c2, c3 = st.columns([1, 1, 1])
+        with c2:
+            if st.button("Start First Assessment", type="primary", use_container_width=True):
+                navigate_to("New Assessment")
 
     st.markdown("</div>", unsafe_allow_html=True)
+
+    # ── Model Health Strip ──
+    m = metrics
+    st.markdown(f"""
+    <div class="cw-card" style="margin-bottom:0;">
+        <div class="cw-card-header">
+            <span class="cw-card-title">Model Health · XGBoost Classifier</span>
+            <span class="cw-badge cw-badge-approved">Production Ready</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;">
+            <div style="text-align:center;padding:0.75rem;background:#F8FAFC;border-radius:8px;border:1px solid #F1F5F9;">
+                <div style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.07em;color:#64748B;font-weight:700;margin-bottom:4px;">Test Accuracy</div>
+                <div style="font-size:1.5rem;font-weight:800;color:#0F172A;letter-spacing:-0.02em;">{m['accuracy']*100:.1f}%</div>
+            </div>
+            <div style="text-align:center;padding:0.75rem;background:#F8FAFC;border-radius:8px;border:1px solid #F1F5F9;">
+                <div style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.07em;color:#64748B;font-weight:700;margin-bottom:4px;">F1 Score</div>
+                <div style="font-size:1.5rem;font-weight:800;color:#0F172A;letter-spacing:-0.02em;">{m['f1_score']:.3f}</div>
+            </div>
+            <div style="text-align:center;padding:0.75rem;background:#F8FAFC;border-radius:8px;border:1px solid #F1F5F9;">
+                <div style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.07em;color:#64748B;font-weight:700;margin-bottom:4px;">Precision</div>
+                <div style="font-size:1.5rem;font-weight:800;color:#0F172A;letter-spacing:-0.02em;">{m['precision']*100:.1f}%</div>
+            </div>
+            <div style="text-align:center;padding:0.75rem;background:#F8FAFC;border-radius:8px;border:1px solid #F1F5F9;">
+                <div style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.07em;color:#64748B;font-weight:700;margin-bottom:4px;">Recall</div>
+                <div style="font-size:1.5rem;font-weight:800;color:#0F172A;letter-spacing:-0.02em;">{m['recall']*100:.1f}%</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
